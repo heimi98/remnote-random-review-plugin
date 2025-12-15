@@ -1,17 +1,17 @@
 {
   "manifestVersion": 1,
-  "id": "plugin_template",
-  "name": "Plugin Template",
-  "author": "remnote",
-  "repoUrl": "",
+  "id": "remnote-random-review",
+  "name": "Random Review",
+  "author": "heimi98",
+  "repoUrl": "https://github.com/heimi98/remnote-random-review-plugin",
   "version": {
-    "major": 0,
+    "major": 1,
     "minor": 0,
-    "patch": 1
+    "patch": 0
   },
   "theme": [],
   "enableOnMobile": false,
-  "description": "",
+  "description": "Randomly review your notes in RemNote with a simple click of a dice button.",
   "requestNative": false,
   "requiredScopes": [
     {

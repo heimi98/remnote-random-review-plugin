@@ -1,8 +1,9 @@
 {
   "private": true,
-  "name": "remnote-plugin-template-react",
-  "version": "0.0.1",
+  "name": "remnote-random-review",
+  "version": "1.0.0",
   "license": "MIT",
+  "description": "A RemNote plugin that allows users to randomly review their notes with a dice button.",
   "scripts": {
     "check-types": "tsc",
     "dev": "cross-env NODE_ENV=development webpack-dev-server --color --progress --no-open",
