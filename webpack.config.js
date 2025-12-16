@@ -6,14 +6,10 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { ESBuildMinifyPlugin } = require('esbuild-loader');
 const { ProvidePlugin, BannerPlugin } = require('webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const ReactRefreshWebpackPlugin = require('@pmmmwh/react-refresh-webpack-plugin');
-
 const CopyPlugin = require('copy-webpack-plugin');
 
 const isProd = process.env.NODE_ENV === 'production';
 const isDevelopment = !isProd;
-
-const fastRefresh = isDevelopment ? new ReactRefreshWebpackPlugin() : null;
 
 const SANDBOX_SUFFIX = '-sandbox';
 
@@ -52,7 +48,7 @@ const config = {
       {
         test: /\.css$/i,
         use: [
-          isDevelopment ? 'style-loader' : MiniCssExtractPlugin.loader,
+          MiniCssExtractPlugin.loader,
           { loader: 'css-loader', options: { url: false } },
           'postcss-loader',
         ],
@@ -60,11 +56,9 @@ const config = {
     ],
   },
   plugins: [
-    isDevelopment
-      ? undefined
-      : new MiniCssExtractPlugin({
-          filename: '[name].css',
-        }),
+    new MiniCssExtractPlugin({
+      filename: '[name].css',
+    }),
     new HtmlWebpackPlugin({
       templateContent: `
       <body></body>
@@ -99,7 +93,6 @@ const config = {
         { from: 'README.md', to: '' },
       ],
     }),
-    fastRefresh,
   ].filter(Boolean),
 };
 
