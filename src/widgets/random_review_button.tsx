@@ -1,10 +1,15 @@
 import React, { useState } from 'react';
 import { usePlugin, renderWidget } from '@remnote/plugin-sdk';
+import { openWeightedRandomDocument, primeRandomReviewCache } from '../random_review_service';
 
 // 随机回顾按钮组件
 const RandomReviewButton = () => {
   const plugin = usePlugin();
   const [isLoading, setIsLoading] = useState(false);
+
+  React.useEffect(() => {
+    primeRandomReviewCache(plugin);
+  }, [plugin]);
 
   // 处理随机回顾操作
   const handleRandomReview = async () => {
@@ -13,51 +18,7 @@ const RandomReviewButton = () => {
     setIsLoading(true);
     
     try {
-      // 获取所有笔记
-      const allNotes = await plugin.rem.getAll().catch(err => {
-        console.error('Error getting notes:', err);
-        return [];
-      });
-      
-      if (!allNotes || !Array.isArray(allNotes)) {
-        plugin.app.toast('Failed to get notes.').catch(() => {});
-        return;
-      }
-      
-      // 过滤出文档类型的笔记
-      const allDocuments = [];
-      for (const note of allNotes) {
-        try {
-          if (await note.isDocument().catch(() => false)) {
-            allDocuments.push(note);
-          }
-        } catch (noteError) {
-          console.error('Error checking note type:', noteError);
-          continue;
-        }
-      }
-      
-      if (allDocuments.length === 0) {
-        plugin.app.toast('No documents found to review.').catch(() => {});
-        return;
-      }
-      
-      // 随机选择一篇文档
-      const randomIndex = Math.floor(Math.random() * allDocuments.length);
-      const randomDocument = allDocuments[randomIndex];
-      
-      if (!randomDocument) {
-        plugin.app.toast('Failed to select random document.').catch(() => {});
-        return;
-      }
-      
-      // 打开选中的文档
-      await randomDocument.openRemAsPage().catch((err) => {
-        console.error('Error opening document:', err);
-        plugin.app.toast('Failed to open document.').catch(() => {});
-      });
-      
-      plugin.app.toast('Random document opened successfully!').catch(() => {});
+      await openWeightedRandomDocument(plugin);
     } catch (error) {
       console.error('Unexpected error:', error);
       plugin.app.toast('An unexpected error occurred.').catch(() => {});
@@ -76,9 +37,10 @@ const RandomReviewButton = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '12px',
+          padding: '10px',
           borderRadius: '50%',
           border: 'none',
+          backgroundColor: 'transparent',
           cursor: isLoading ? 'not-allowed' : 'pointer',
           transition: 'all 0.2s ease',
           boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
@@ -108,11 +70,11 @@ const RandomReviewButton = () => {
             strokeLinejoin="round"
           >
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-            <circle cx="7" cy="7" r="2" fill="currentColor" />
-            <circle cx="17" cy="7" r="2" fill="currentColor" />
-            <circle cx="12" cy="12" r="2" fill="currentColor" />
-            <circle cx="7" cy="17" r="2" fill="currentColor" />
-            <circle cx="17" cy="17" r="2" fill="currentColor" />
+            <circle cx="8" cy="8" r="1" fill="currentColor" />
+            <circle cx="16" cy="8" r="1" fill="currentColor" />
+            <circle cx="12" cy="12" r="1" fill="currentColor" />
+            <circle cx="8" cy="16" r="1" fill="currentColor" />
+            <circle cx="16" cy="16" r="1" fill="currentColor" />
           </svg>
         )}
       </button>

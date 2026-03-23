@@ -1,168 +1,59 @@
 # RemNote Random Review Plugin
 
-一个用于在 RemNote 中随机复习笔记的插件，帮助你高效地回顾和巩固知识。
+Open a document from your RemNote knowledge base with one click.
 
-## 功能特性
+This plugin now uses weighted random selection instead of pure randomness. Documents that have not been edited for a longer time and have been opened fewer times are more likely to be picked.
 
-- 🎲 随机抽取你的 RemNote 笔记进行复习
-- 📱 简单易用的侧边栏组件，带有骰子图标
-- 📝 支持所有笔记类型
-- 🔄 公平的随机选择算法，确保覆盖所有笔记
-- ⏳ 加载状态提示，提升用户体验
-- ❌ 完善的错误处理机制
+## Features
 
-## 安装说明
+- Open a random document from the sidebar or command palette
+- Show an English toast such as `This is your 3rd time opening this document.`
+- Track per-document open counts with synced plugin storage
+- Prefer older and less-opened documents
+- Cache the document index locally for faster repeated use
 
-### 方法一：从 RemNote 插件商店安装
+## Installation
 
-1. 打开 RemNote
-2. 进入插件中心
-3. 搜索 "Random Review"
-4. 点击 "安装"
+### From the RemNote plugin marketplace
 
-### 方法二：手动安装（开发版本）
+1. Open RemNote.
+2. Go to the plugin marketplace.
+3. Search for `Random Review`.
+4. Install the plugin.
 
-1. 克隆本仓库：
-   ```bash
-   git clone https://github.com/heimi98/remnote-random-review-plugin.git
-   cd remnote-random-review-plugin
-   ```
+### Manual install
 
-2. 安装依赖：
-   ```bash
-   npm install
-   ```
+```bash
+git clone https://github.com/heimi98/remnote-random-review-plugin.git
+cd remnote-random-review-plugin
+npm install
+npm run build
+```
 
-3. 构建插件：
-   ```bash
-   npm run build
-   ```
+Then import `PluginZip.zip` into RemNote.
 
-4. 在 RemNote 中导入生成的 `PluginZip.zip` 文件
+## Development
 
-## 使用方法
+Requirements:
 
-1. 安装插件后，在 RemNote 侧边栏中找到 "Random Review" 组件
-2. 点击带有骰子图标的按钮，系统会随机选择一篇笔记并自动打开
-3. 等待加载提示消失，查看随机打开的笔记
-4. 再次点击按钮，获取新的随机笔记
-
-## 开发指南
-
-### 环境要求
-
-- Node.js 16+（推荐使用 nvm 管理）
+- Node.js 16+
 - npm
 
-### 开发流程
+Commands:
 
-1. 克隆仓库并安装依赖
-2. 启动开发服务器：
-   ```bash
-   npm run dev
-   ```
-3. 在 RemNote 中启用插件开发模式并连接到本地服务器
-4. 进行开发和测试
-5. 运行类型检查：
-   ```bash
-   npm run check-types
-   ```
-6. 构建生产版本：
-   ```bash
-   npm run build
-   ```
-
-### 项目结构
-
-```
-remnote-random-review-plugin/
-├── public/
-│   └── manifest.json       # 插件配置文件
-├── src/
-│   ├── widgets/            # 插件组件
-│   │   ├── index.tsx       # 插件入口
-│   │   ├── random_review_button.tsx  # 骰子按钮组件
-│   │   └── sample_widget.tsx  # 示例组件
-│   ├── index.css           # 主样式文件
-│   └── style.css           # 组件样式
-├── package.json            # 项目配置
-├── tsconfig.json           # TypeScript 配置
-├── webpack.config.js       # Webpack 配置
-└── PluginZip.zip           # 构建生成的插件文件
+```bash
+npm run dev
+npm run check-types
+npm run build
 ```
 
-## 核心功能实现
+## Tech Stack
 
-### 随机选择算法
-
-插件使用公平的随机选择算法，从所有笔记中随机选择一篇：
-
-```typescript
-// 获取所有笔记
-const allNotes = await plugin.rem.getAll();
-
-// 随机选择一篇笔记
-const randomIndex = Math.floor(Math.random() * allNotes.length);
-const randomNote = allNotes[randomIndex];
-```
-
-### 按钮组件
-
-带有骰子图标的按钮，集成在 RemNote 侧边栏中：
-
-- 使用 SVG 骰子图标，符合 RemNote 设计风格
-- 点击时显示加载状态
-- 禁用状态防止重复点击
-
-### 错误处理
-
-插件包含完善的错误处理机制：
-
-- 处理笔记为空的情况
-- 处理 API 调用失败
-- 显示友好的错误提示
-- 确保插件稳定运行
-
-## 技术栈
-
-- React 17
 - TypeScript
+- React
 - RemNote Plugin SDK
 - Webpack
-- Tailwind CSS
 
-## 贡献指南
+## License
 
-欢迎提交 Issue 和 Pull Request！
-
-### 提交 Pull Request
-
-1. Fork 本仓库
-2. 创建你的特性分支：`git checkout -b feature/AmazingFeature`
-3. 提交你的更改：`git commit -m 'Add some AmazingFeature'`
-4. 推送到分支：`git push origin feature/AmazingFeature`
-5. 打开 Pull Request
-
-### 代码规范
-
-- 使用 Prettier 进行代码格式化
-- 确保 TypeScript 类型检查通过
-- 遵循项目现有的代码风格
-- 添加适当的注释
-
-## 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
-
-## 作者
-
-- **heimi98** - [GitHub](https://github.com/heimi98)
-
-## 反馈与支持
-
-- 如有问题或建议，欢迎 [提交 Issue](https://github.com/heimi98/remnote-random-review-plugin/issues)
-- 欢迎 Star 和 Fork 本项目
-
----
-
-**享受随机复习的乐趣！** 🎉
+[MIT](LICENSE)
