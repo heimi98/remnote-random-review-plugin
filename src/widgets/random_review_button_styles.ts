@@ -1,3 +1,4 @@
+export const RANDOM_REVIEW_BUTTON_STYLES = String.raw`
 .random-review-widget {
   padding: 10px 8px;
   --rr-button-border: rgba(255, 255, 255, 0.82);
@@ -273,3 +274,4 @@
     transform: rotate(360deg);
   }
 }
+`;

@@ -5,6 +5,7 @@ const DOCUMENT_INDEX_STORAGE_KEY = 'random-review/document-index/v1';
 const DOCUMENT_INDEX_TTL_MS = 10 * 60 * 1000;
 const DOCUMENT_BATCH_SIZE = 50;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+export const NO_REVIEWABLE_DOCUMENTS_MESSAGE = 'No reviewable documents found yet. Add some content and roll again.';
 
 type OpenCounts = Record<RemId, number>;
 
@@ -26,6 +27,14 @@ export function primeRandomReviewCache(plugin: RNPlugin) {
 
 export async function openWeightedRandomDocument(plugin: RNPlugin) {
   await getRandomReviewService(plugin).openWeightedRandomDocument();
+}
+
+export async function prepareWeightedRandomDocument(plugin: RNPlugin) {
+  return getRandomReviewService(plugin).prepareWeightedRandomDocument();
+}
+
+export async function openPreparedRandomDocument(plugin: RNPlugin, document: Rem) {
+  await getRandomReviewService(plugin).openPreparedRandomDocument(document);
 }
 
 function getRandomReviewService(plugin: RNPlugin) {
@@ -142,29 +151,37 @@ class RandomReviewService {
 
   async openWeightedRandomDocument() {
     try {
-      await this.ensureOpenCountsLoaded();
-
-      const document = await this.selectDocumentToOpen();
+      const document = await this.prepareWeightedRandomDocument();
 
       if (!document) {
-        this.toast('No documents found to review.');
+        this.toast(NO_REVIEWABLE_DOCUMENTS_MESSAGE);
         return;
       }
 
-      await document.openRemAsPage();
-
-      const openCount = this.incrementOpenCount(document._id);
-      this.toast(`This is your ${formatOrdinal(openCount)} time opening this document.`);
+      await this.openPreparedRandomDocument(document);
     } catch (error) {
       console.error('Error opening weighted random document:', error);
       this.toast('Failed to open random document. Please try again.');
     }
   }
 
+  async prepareWeightedRandomDocument() {
+    await this.ensureOpenCountsLoaded();
+    return this.selectDocumentToOpen();
+  }
+
+  async openPreparedRandomDocument(document: Rem) {
+    await this.ensureOpenCountsLoaded();
+    await document.openRemAsPage();
+
+    const openCount = this.incrementOpenCount(document._id);
+    this.toast(this.getSuccessToastMessage(openCount));
+  }
+
   private async selectDocumentToOpen(): Promise<Rem | undefined> {
     const invalidDocumentIds = new Set<RemId>();
 
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    while (true) {
       const candidateDocuments = (await this.getDocumentIndex()).filter(
         (document) => !invalidDocumentIds.has(document.id)
       );
@@ -179,7 +196,7 @@ class RandomReviewService {
         return undefined;
       }
 
-      const resolvedDocument = await this.resolveDocument(selectedDocument.id);
+      const resolvedDocument = await this.resolveReviewableDocument(selectedDocument.id);
 
       if (resolvedDocument) {
         return resolvedDocument;
@@ -192,7 +209,7 @@ class RandomReviewService {
     return undefined;
   }
 
-  private async resolveDocument(documentId: RemId) {
+  private async resolveReviewableDocument(documentId: RemId) {
     try {
       const document = await this.plugin.rem.findOne(documentId);
 
@@ -201,7 +218,13 @@ class RandomReviewService {
       }
 
       const isDocument = await document.isDocument().catch(() => false);
-      return isDocument ? document : undefined;
+
+      if (!isDocument) {
+        return undefined;
+      }
+
+      const isReviewable = await this.hasReviewableContent(document);
+      return isReviewable ? document : undefined;
     } catch (error) {
       console.error('Error resolving document:', error);
       return undefined;
@@ -314,6 +337,12 @@ class RandomReviewService {
             const isDocument = await note.isDocument().catch(() => false);
 
             if (!isDocument) {
+              return undefined;
+            }
+
+            const isReviewable = await this.hasReviewableContent(note);
+
+            if (!isReviewable) {
               return undefined;
             }
 
@@ -468,6 +497,34 @@ class RandomReviewService {
 
     this.documentIndex = nextDocumentIndex;
     void this.persistDocumentIndex();
+  }
+
+  private async hasReviewableContent(document: Rem) {
+    if (document.children.length > 0) {
+      return true;
+    }
+
+    if (!document.backText) {
+      return false;
+    }
+
+    try {
+      return !(await this.plugin.richText.empty(document.backText));
+    } catch (error) {
+      console.error('Error checking document content:', error);
+      return false;
+    }
+  }
+
+  private getSuccessToastMessage(openCount: number) {
+    const ordinal = formatOrdinal(openCount);
+    const messages = [
+      `Lucky roll! That's your ${ordinal} visit to this document.`,
+      `Fresh roll! This is your ${ordinal} time opening this document.`,
+      `Nice pull! You've landed on this document for the ${ordinal} time.`,
+    ];
+
+    return messages[Math.floor(Math.random() * messages.length)] ?? messages[0];
   }
 
   private toast(message: string) {
