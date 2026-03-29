@@ -2,10 +2,37 @@ import { type Rem, type RemId, type RNPlugin } from '@remnote/plugin-sdk';
 
 const OPEN_COUNTS_STORAGE_KEY = 'random-review/open-counts/v1';
 const DOCUMENT_INDEX_STORAGE_KEY = 'random-review/document-index/v1';
+const SCHEDULER_STATE_STORAGE_KEY = 'random-review/scheduler-state/v1';
+const PENDING_REVIEW_STORAGE_KEY = 'random-review/pending-review/v1';
+const RESET_MEMORY_LAST_VALUE_STORAGE_KEY = 'random-review/reset-memory-last-value/v1';
+
 const DOCUMENT_INDEX_TTL_MS = 10 * 60 * 1000;
 const DOCUMENT_BATCH_SIZE = 50;
 const DAY_IN_MS = 24 * 60 * 60 * 1000;
+const RESET_MEMORY_SETTING_ID = 'reset_review_memory';
+
+const DEFAULT_DIFFICULTY = 0.35;
+const DEFAULT_STABILITY_DAYS = 2;
+const DEFAULT_RETRIEVABILITY = 0.35;
+
 export const NO_REVIEWABLE_DOCUMENTS_MESSAGE = 'No reviewable documents found yet. Add some content and roll again.';
+export const NO_PENDING_REVIEW_MESSAGE = 'No pending review found. Roll to open a document first.';
+
+export type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
+
+export type PrepareRandomDocumentResult = {
+  document?: Rem;
+  reason: 'ready' | 'no-reviewable';
+};
+
+export type PendingReviewState = {
+  documentId: RemId;
+  openedAt: number;
+};
+
+export type PendingReviewStatus = {
+  pendingReview?: PendingReviewState;
+};
 
 type OpenCounts = Record<RemId, number>;
 
@@ -19,7 +46,31 @@ type DocumentIndexSnapshot = {
   documents: DocumentIndexEntry[];
 };
 
+type DocumentSchedulerState = {
+  difficulty: number;
+  stabilityDays: number;
+  lastReviewAt: number;
+  dueAt: number;
+  reviewCount: number;
+  lapseCount: number;
+  lastRating?: ReviewRating;
+};
+
+type SchedulerState = Record<RemId, DocumentSchedulerState>;
+
+const REVIEW_RATING_SET = new Set<ReviewRating>(['again', 'hard', 'good', 'easy']);
+
 const randomReviewServices = new WeakMap<RNPlugin, RandomReviewService>();
+
+export async function registerRandomReviewSettings(plugin: RNPlugin) {
+  await plugin.settings.registerBooleanSetting({
+    id: RESET_MEMORY_SETTING_ID,
+    title: 'Reset Review Memory',
+    description:
+      'Toggle ON once to clear all random-review memory (open counts, scheduler state, and pending review).',
+    defaultValue: false,
+  });
+}
 
 export function primeRandomReviewCache(plugin: RNPlugin) {
   getRandomReviewService(plugin).prime();
@@ -35,6 +86,18 @@ export async function prepareWeightedRandomDocument(plugin: RNPlugin) {
 
 export async function openPreparedRandomDocument(plugin: RNPlugin, document: Rem) {
   await getRandomReviewService(plugin).openPreparedRandomDocument(document);
+}
+
+export async function getPendingReviewStatus(plugin: RNPlugin) {
+  return getRandomReviewService(plugin).getPendingReviewStatus();
+}
+
+export async function ratePendingReview(plugin: RNPlugin, rating: ReviewRating) {
+  return getRandomReviewService(plugin).ratePendingReview(rating);
+}
+
+export async function skipPendingReview(plugin: RNPlugin) {
+  return getRandomReviewService(plugin).skipPendingReview();
 }
 
 function getRandomReviewService(plugin: RNPlugin) {
@@ -110,6 +173,91 @@ function sanitizeDocumentIndexSnapshot(value: unknown): DocumentIndexSnapshot | 
   };
 }
 
+function sanitizeReviewRating(value: unknown): ReviewRating | undefined {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  return REVIEW_RATING_SET.has(value as ReviewRating) ? (value as ReviewRating) : undefined;
+}
+
+function clamp(value: number, minValue: number, maxValue: number) {
+  return Math.min(maxValue, Math.max(minValue, value));
+}
+
+function sanitizeSchedulerState(value: unknown): SchedulerState {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const sanitizedState: SchedulerState = {};
+
+  for (const [id, state] of Object.entries(value)) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      continue;
+    }
+
+    const candidate = state as Partial<DocumentSchedulerState>;
+
+    const difficulty =
+      typeof candidate.difficulty === 'number' && Number.isFinite(candidate.difficulty)
+        ? clamp(candidate.difficulty, 0, 1)
+        : DEFAULT_DIFFICULTY;
+    const stabilityDays =
+      typeof candidate.stabilityDays === 'number' && Number.isFinite(candidate.stabilityDays)
+        ? Math.max(0.1, candidate.stabilityDays)
+        : DEFAULT_STABILITY_DAYS;
+    const lastReviewAt =
+      typeof candidate.lastReviewAt === 'number' && Number.isFinite(candidate.lastReviewAt)
+        ? Math.max(0, candidate.lastReviewAt)
+        : 0;
+    const dueAt = typeof candidate.dueAt === 'number' && Number.isFinite(candidate.dueAt)
+      ? Math.max(0, candidate.dueAt)
+      : 0;
+    const reviewCount =
+      typeof candidate.reviewCount === 'number' && Number.isFinite(candidate.reviewCount)
+        ? Math.max(0, Math.floor(candidate.reviewCount))
+        : 0;
+    const lapseCount =
+      typeof candidate.lapseCount === 'number' && Number.isFinite(candidate.lapseCount)
+        ? Math.max(0, Math.floor(candidate.lapseCount))
+        : 0;
+
+    sanitizedState[id] = {
+      difficulty,
+      stabilityDays,
+      lastReviewAt,
+      dueAt,
+      reviewCount,
+      lapseCount,
+      lastRating: sanitizeReviewRating(candidate.lastRating),
+    };
+  }
+
+  return sanitizedState;
+}
+
+function sanitizePendingReviewState(value: unknown): PendingReviewState | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const candidate = value as Partial<PendingReviewState>;
+
+  if (typeof candidate.documentId !== 'string') {
+    return undefined;
+  }
+
+  const openedAt = typeof candidate.openedAt === 'number' && Number.isFinite(candidate.openedAt)
+    ? candidate.openedAt
+    : 0;
+
+  return {
+    documentId: candidate.documentId,
+    openedAt: Math.max(0, openedAt),
+  };
+}
+
 function formatOrdinal(count: number) {
   const remainderHundred = count % 100;
 
@@ -135,6 +283,18 @@ class RandomReviewService {
   private openCountsLoadPromise: Promise<OpenCounts> | undefined;
   private openCountsPersistQueue: Promise<void> = Promise.resolve();
 
+  private schedulerState: SchedulerState = {};
+  private schedulerStateLoaded = false;
+  private schedulerStateLoadPromise: Promise<SchedulerState> | undefined;
+  private schedulerStatePersistQueue: Promise<void> = Promise.resolve();
+
+  private pendingReview: PendingReviewState | undefined;
+  private pendingReviewLoaded = false;
+  private pendingReviewLoadPromise: Promise<PendingReviewState | undefined> | undefined;
+  private pendingReviewPersistQueue: Promise<void> = Promise.resolve();
+  private resetCheckQueue: Promise<void> = Promise.resolve();
+  private resetWatcherIntervalId: number | undefined;
+
   private documentIndex: DocumentIndexEntry[] = [];
   private documentIndexLoaded = false;
   private documentIndexLoadedAt = 0;
@@ -144,38 +304,116 @@ class RandomReviewService {
   constructor(private readonly plugin: RNPlugin) {}
 
   prime() {
+    this.startResetWatcher();
+    void this.ensureResetAppliedFromSettings();
     void this.ensureOpenCountsLoaded();
+    void this.ensureSchedulerStateLoaded();
+    void this.ensurePendingReviewLoaded();
     void this.loadDocumentIndexFromStorage();
     void this.refreshDocumentIndexInBackground();
   }
 
   async openWeightedRandomDocument() {
     try {
-      const document = await this.prepareWeightedRandomDocument();
+      const result = await this.prepareWeightedRandomDocument();
 
-      if (!document) {
+      if (!result.document) {
         this.toast(NO_REVIEWABLE_DOCUMENTS_MESSAGE);
         return;
       }
 
-      await this.openPreparedRandomDocument(document);
+      await this.openPreparedRandomDocument(result.document);
     } catch (error) {
       console.error('Error opening weighted random document:', error);
       this.toast('Failed to open random document. Please try again.');
     }
   }
 
-  async prepareWeightedRandomDocument() {
-    await this.ensureOpenCountsLoaded();
-    return this.selectDocumentToOpen();
+  async prepareWeightedRandomDocument(): Promise<PrepareRandomDocumentResult> {
+    await this.ensureResetAppliedFromSettings();
+    await Promise.all([
+      this.ensureOpenCountsLoaded(),
+      this.ensureSchedulerStateLoaded(),
+      this.ensurePendingReviewLoaded(),
+    ]);
+
+    const document = await this.selectDocumentToOpen();
+
+    if (!document) {
+      return { reason: 'no-reviewable' };
+    }
+
+    return {
+      reason: 'ready',
+      document,
+    };
   }
 
   async openPreparedRandomDocument(document: Rem) {
-    await this.ensureOpenCountsLoaded();
+    await this.ensureResetAppliedFromSettings();
+    await Promise.all([
+      this.ensureOpenCountsLoaded(),
+      this.ensureSchedulerStateLoaded(),
+      this.ensurePendingReviewLoaded(),
+    ]);
+
     await document.openRemAsPage();
 
     const openCount = this.incrementOpenCount(document._id);
+    this.setPendingReview({
+      documentId: document._id,
+      openedAt: Date.now(),
+    });
     this.toast(this.getSuccessToastMessage(openCount));
+  }
+
+  async getPendingReviewStatus(): Promise<PendingReviewStatus> {
+    await this.ensureResetAppliedFromSettings();
+    const pendingReview = await this.ensurePendingReviewLoaded();
+
+    return {
+      pendingReview,
+    };
+  }
+
+  async ratePendingReview(rating: ReviewRating) {
+    await this.ensureResetAppliedFromSettings();
+    await Promise.all([
+      this.ensureSchedulerStateLoaded(),
+      this.ensurePendingReviewLoaded(),
+    ]);
+
+    if (!this.pendingReview) {
+      this.toast(NO_PENDING_REVIEW_MESSAGE);
+      return false;
+    }
+
+    const now = Date.now();
+    const currentState = this.getDocumentSchedulerState(this.pendingReview.documentId, now);
+    const nextState = this.getNextSchedulerState(currentState, rating, now);
+
+    this.schedulerState[this.pendingReview.documentId] = nextState;
+    await Promise.all([
+      this.enqueueSchedulerStatePersist(),
+      this.clearPendingReview(),
+    ]);
+
+    this.toast(this.getRatingToastMessage(rating, nextState.stabilityDays));
+    return true;
+  }
+
+  async skipPendingReview() {
+    await this.ensureResetAppliedFromSettings();
+    await this.ensurePendingReviewLoaded();
+
+    if (!this.pendingReview) {
+      this.toast(NO_PENDING_REVIEW_MESSAGE);
+      return false;
+    }
+
+    await this.clearPendingReview();
+    this.toast('Skipped rating for the last opened document.');
+    return true;
   }
 
   private async selectDocumentToOpen(): Promise<Rem | undefined> {
@@ -205,8 +443,6 @@ class RandomReviewService {
       invalidDocumentIds.add(selectedDocument.id);
       this.removeDocumentFromCache(selectedDocument.id);
     }
-
-    return undefined;
   }
 
   private async resolveReviewableDocument(documentId: RemId) {
@@ -304,6 +540,8 @@ class RandomReviewService {
 
           await this.persistDocumentIndex();
           await this.pruneOpenCounts(nextDocumentIndex);
+          await this.pruneSchedulerState(nextDocumentIndex);
+          await this.prunePendingReview(nextDocumentIndex);
         } catch (error) {
           console.error('Error refreshing document index:', error);
         } finally {
@@ -381,6 +619,10 @@ class RandomReviewService {
   }
 
   private selectWeightedDocument(documents: DocumentIndexEntry[]) {
+    return this.selectFsrsLiteWeightedDocument(documents);
+  }
+
+  private selectFsrsLiteWeightedDocument(documents: DocumentIndexEntry[]) {
     if (documents.length === 0) {
       return undefined;
     }
@@ -388,12 +630,18 @@ class RandomReviewService {
     const now = Date.now();
     let totalWeight = 0;
     const weightedDocuments = documents.map((document) => {
-      const updatedAt = document.updatedAt > 0 ? document.updatedAt : now;
-      const openCount = this.openCounts[document.id] ?? 0;
-      const ageDays = Math.max(0, now - updatedAt) / DAY_IN_MS;
-      const recencyFactor = 1 + Math.log1p(ageDays / 7);
-      const openPenalty = 1 / Math.pow(openCount + 1, 1.35);
-      const weight = 0.1 + recencyFactor * openPenalty;
+      const schedulerState = this.getDocumentSchedulerState(document.id, now);
+      const stabilityMs = Math.max(0.1, schedulerState.stabilityDays) * DAY_IN_MS;
+      const elapsedMs = Math.max(0, now - schedulerState.lastReviewAt);
+      const retrievability = schedulerState.reviewCount > 0
+        ? Math.exp(-(elapsedMs / stabilityMs))
+        : DEFAULT_RETRIEVABILITY;
+      const urgency = clamp(1 - retrievability, 0, 1);
+      const overdueBoost = schedulerState.dueAt <= now
+        ? 1 + Math.min(1.5, (now - schedulerState.dueAt) / (stabilityMs + 1))
+        : 0.35;
+      const noveltyBoost = schedulerState.reviewCount === 0 ? 0.25 : 0;
+      const weight = 0.05 + urgency * 1.8 + overdueBoost + noveltyBoost;
 
       totalWeight += weight;
 
@@ -403,6 +651,14 @@ class RandomReviewService {
       };
     });
 
+    return this.pickDocumentByWeight(documents, weightedDocuments, totalWeight);
+  }
+
+  private pickDocumentByWeight(
+    documents: DocumentIndexEntry[],
+    weightedDocuments: { document: DocumentIndexEntry; weight: number }[],
+    totalWeight: number
+  ) {
     if (totalWeight <= 0) {
       const randomIndex = Math.floor(Math.random() * documents.length);
       return documents[randomIndex];
@@ -419,6 +675,136 @@ class RandomReviewService {
     }
 
     return weightedDocuments[weightedDocuments.length - 1]?.document;
+  }
+
+  private getDocumentSchedulerState(documentId: RemId, now: number): DocumentSchedulerState {
+    const state = this.schedulerState[documentId];
+
+    if (state) {
+      return state;
+    }
+
+    return {
+      difficulty: DEFAULT_DIFFICULTY,
+      stabilityDays: DEFAULT_STABILITY_DAYS,
+      lastReviewAt: 0,
+      dueAt: now,
+      reviewCount: 0,
+      lapseCount: 0,
+      lastRating: undefined,
+    };
+  }
+
+  private getNextSchedulerState(currentState: DocumentSchedulerState, rating: ReviewRating, now: number): DocumentSchedulerState {
+    let difficulty = currentState.difficulty;
+    let stabilityDays = currentState.stabilityDays;
+    let lapseCount = currentState.lapseCount;
+
+    if (rating === 'again') {
+      difficulty = clamp(difficulty + 0.15, 0, 1);
+      stabilityDays = Math.max(0.5, stabilityDays * 0.45);
+      lapseCount += 1;
+    } else if (rating === 'hard') {
+      difficulty = clamp(difficulty + 0.06, 0.1, 1);
+      stabilityDays = Math.max(1, stabilityDays * (1.2 - 0.3 * difficulty));
+    } else if (rating === 'good') {
+      difficulty = clamp(difficulty - 0.04, 0.1, 1);
+      stabilityDays = stabilityDays * (1.9 - 0.5 * difficulty);
+    } else {
+      difficulty = clamp(difficulty - 0.08, 0.1, 1);
+      stabilityDays = stabilityDays * (2.6 - 0.6 * difficulty);
+    }
+
+    return {
+      difficulty,
+      stabilityDays,
+      lastReviewAt: now,
+      dueAt: now + stabilityDays * DAY_IN_MS,
+      reviewCount: currentState.reviewCount + 1,
+      lapseCount,
+      lastRating: rating,
+    };
+  }
+
+  private async ensureResetAppliedFromSettings() {
+    this.resetCheckQueue = this.resetCheckQueue
+      .catch(() => {})
+      .then(async () => {
+        const [isResetEnabled, lastResetFlag] = await Promise.all([
+          this.getResetMemorySettingEnabled(),
+          this.getLastResetSettingValue(),
+        ]);
+
+        if (isResetEnabled && !lastResetFlag) {
+          await this.resetReviewMemory();
+          await this.setLastResetSettingValue(true);
+          return;
+        }
+
+        if (!isResetEnabled && lastResetFlag) {
+          await this.setLastResetSettingValue(false);
+        }
+      });
+
+    return this.resetCheckQueue;
+  }
+
+  private startResetWatcher() {
+    if (this.resetWatcherIntervalId !== undefined || typeof window === 'undefined') {
+      return;
+    }
+
+    this.resetWatcherIntervalId = window.setInterval(() => {
+      void this.ensureResetAppliedFromSettings();
+    }, 1200);
+  }
+
+  private async getResetMemorySettingEnabled() {
+    try {
+      const value = await this.plugin.settings.getSetting<boolean>(RESET_MEMORY_SETTING_ID);
+      return value === true;
+    } catch (error) {
+      console.error('Error loading reset-memory setting:', error);
+      return false;
+    }
+  }
+
+  private async getLastResetSettingValue() {
+    try {
+      const value = await this.plugin.storage.getSynced<boolean>(RESET_MEMORY_LAST_VALUE_STORAGE_KEY);
+      return value === true;
+    } catch (error) {
+      console.error('Error loading reset-memory setting state:', error);
+      return false;
+    }
+  }
+
+  private async setLastResetSettingValue(value: boolean) {
+    try {
+      await this.plugin.storage.setSynced(RESET_MEMORY_LAST_VALUE_STORAGE_KEY, value);
+    } catch (error) {
+      console.error('Error persisting reset-memory setting state:', error);
+    }
+  }
+
+  private async resetReviewMemory() {
+    await Promise.all([
+      this.ensureOpenCountsLoaded(),
+      this.ensureSchedulerStateLoaded(),
+      this.ensurePendingReviewLoaded(),
+    ]);
+
+    this.openCounts = {};
+    this.schedulerState = {};
+    this.pendingReview = undefined;
+
+    await Promise.all([
+      this.enqueueOpenCountsPersist(),
+      this.enqueueSchedulerStatePersist(),
+      this.enqueuePendingReviewPersist(),
+    ]);
+
+    this.toast('Memory cleared successfully. Start reviewing again.');
   }
 
   private async ensureOpenCountsLoaded() {
@@ -447,11 +833,73 @@ class RandomReviewService {
     return this.openCountsLoadPromise;
   }
 
+  private async ensureSchedulerStateLoaded() {
+    if (this.schedulerStateLoaded) {
+      return this.schedulerState;
+    }
+
+    if (!this.schedulerStateLoadPromise) {
+      this.schedulerStateLoadPromise = (async () => {
+        try {
+          this.schedulerState = sanitizeSchedulerState(
+            await this.plugin.storage.getSynced<SchedulerState>(SCHEDULER_STATE_STORAGE_KEY)
+          );
+        } catch (error) {
+          console.error('Error loading scheduler state:', error);
+          this.schedulerState = {};
+        } finally {
+          this.schedulerStateLoaded = true;
+          this.schedulerStateLoadPromise = undefined;
+        }
+
+        return this.schedulerState;
+      })();
+    }
+
+    return this.schedulerStateLoadPromise;
+  }
+
+  private async ensurePendingReviewLoaded() {
+    if (this.pendingReviewLoaded) {
+      return this.pendingReview;
+    }
+
+    if (!this.pendingReviewLoadPromise) {
+      this.pendingReviewLoadPromise = (async () => {
+        try {
+          this.pendingReview = sanitizePendingReviewState(
+            await this.plugin.storage.getSynced<PendingReviewState>(PENDING_REVIEW_STORAGE_KEY)
+          );
+        } catch (error) {
+          console.error('Error loading pending review:', error);
+          this.pendingReview = undefined;
+        } finally {
+          this.pendingReviewLoaded = true;
+          this.pendingReviewLoadPromise = undefined;
+        }
+
+        return this.pendingReview;
+      })();
+    }
+
+    return this.pendingReviewLoadPromise;
+  }
+
   private incrementOpenCount(documentId: RemId) {
     const nextOpenCount = (this.openCounts[documentId] ?? 0) + 1;
     this.openCounts[documentId] = nextOpenCount;
     void this.enqueueOpenCountsPersist();
     return nextOpenCount;
+  }
+
+  private setPendingReview(pendingReview: PendingReviewState) {
+    this.pendingReview = pendingReview;
+    void this.enqueuePendingReviewPersist();
+  }
+
+  private async clearPendingReview() {
+    this.pendingReview = undefined;
+    await this.enqueuePendingReviewPersist();
   }
 
   private async pruneOpenCounts(documentIndex: DocumentIndexEntry[]) {
@@ -472,6 +920,38 @@ class RandomReviewService {
     }
   }
 
+  private async pruneSchedulerState(documentIndex: DocumentIndexEntry[]) {
+    await this.ensureSchedulerStateLoaded();
+
+    const validDocumentIds = new Set(documentIndex.map((document) => document.id));
+    let removedCount = 0;
+
+    for (const documentId of Object.keys(this.schedulerState)) {
+      if (!validDocumentIds.has(documentId)) {
+        delete this.schedulerState[documentId];
+        removedCount += 1;
+      }
+    }
+
+    if (removedCount > 0) {
+      await this.enqueueSchedulerStatePersist();
+    }
+  }
+
+  private async prunePendingReview(documentIndex: DocumentIndexEntry[]) {
+    await this.ensurePendingReviewLoaded();
+
+    if (!this.pendingReview) {
+      return;
+    }
+
+    const validDocumentIds = new Set(documentIndex.map((document) => document.id));
+
+    if (!validDocumentIds.has(this.pendingReview.documentId)) {
+      await this.clearPendingReview();
+    }
+  }
+
   private enqueueOpenCountsPersist() {
     const openCountsSnapshot = { ...this.openCounts };
 
@@ -486,6 +966,38 @@ class RandomReviewService {
       });
 
     return this.openCountsPersistQueue;
+  }
+
+  private enqueueSchedulerStatePersist() {
+    const schedulerStateSnapshot = { ...this.schedulerState };
+
+    this.schedulerStatePersistQueue = this.schedulerStatePersistQueue
+      .catch(() => {})
+      .then(async () => {
+        try {
+          await this.plugin.storage.setSynced(SCHEDULER_STATE_STORAGE_KEY, schedulerStateSnapshot);
+        } catch (error) {
+          console.error('Error persisting scheduler state:', error);
+        }
+      });
+
+    return this.schedulerStatePersistQueue;
+  }
+
+  private enqueuePendingReviewPersist() {
+    const pendingReviewSnapshot = this.pendingReview ? { ...this.pendingReview } : undefined;
+
+    this.pendingReviewPersistQueue = this.pendingReviewPersistQueue
+      .catch(() => {})
+      .then(async () => {
+        try {
+          await this.plugin.storage.setSynced(PENDING_REVIEW_STORAGE_KEY, pendingReviewSnapshot);
+        } catch (error) {
+          console.error('Error persisting pending review:', error);
+        }
+      });
+
+    return this.pendingReviewPersistQueue;
   }
 
   private removeDocumentFromCache(documentId: RemId) {
@@ -525,6 +1037,24 @@ class RandomReviewService {
     ];
 
     return messages[Math.floor(Math.random() * messages.length)] ?? messages[0];
+  }
+
+  private getRatingToastMessage(rating: ReviewRating, nextIntervalDays: number) {
+    const roundedDays = Math.max(0.5, Math.round(nextIntervalDays * 10) / 10);
+
+    if (rating === 'again') {
+      return `Marked as Again. We'll bring this back soon (~${roundedDays} days).`;
+    }
+
+    if (rating === 'hard') {
+      return `Marked as Hard. Next review in about ${roundedDays} days.`;
+    }
+
+    if (rating === 'good') {
+      return `Marked as Good. Next review in about ${roundedDays} days.`;
+    }
+
+    return `Marked as Easy. Next review in about ${roundedDays} days.`;
   }
 
   private toast(message: string) {

@@ -1,85 +1,64 @@
 export const RANDOM_REVIEW_BUTTON_STYLES = String.raw`
 .random-review-widget {
   padding: 10px 8px;
-  --rr-button-border: rgba(255, 255, 255, 0.82);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  --rr-button-border: rgba(255, 222, 250, 0.72);
   --rr-button-fill:
-    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.25) 28%, rgba(255, 255, 255, 0) 52%),
-    linear-gradient(145deg, #ffb7d1 0%, #ffd1ac 48%, #bfe6ff 100%);
-  --rr-button-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.14));
-  --rr-button-gloss: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.12));
-  --rr-icon-color: #5b6778;
-  --rr-dice-pip-color: #83556d;
-  --rr-icon-shadow: drop-shadow(0 2px 3px rgba(41, 68, 112, 0.14));
-  --rr-shadow-idle:
-    0 10px 24px rgba(232, 143, 178, 0.24),
-    0 12px 28px rgba(104, 155, 216, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -10px 18px rgba(166, 190, 255, 0.14);
-  --rr-shadow-hover:
-    0 16px 30px rgba(238, 143, 178, 0.28),
-    0 18px 34px rgba(104, 155, 216, 0.22),
-    0 0 0 1px rgba(255, 255, 255, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -10px 18px rgba(166, 190, 255, 0.2);
-  --rr-shadow-pressing:
-    0 6px 14px rgba(232, 143, 178, 0.22),
-    0 8px 16px rgba(104, 155, 216, 0.16),
-    inset 0 2px 8px rgba(255, 255, 255, 0.22),
-    inset 0 -10px 18px rgba(126, 162, 255, 0.18);
-  --rr-shadow-loading:
-    0 12px 26px rgba(232, 143, 178, 0.26),
-    0 14px 28px rgba(104, 155, 216, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.98),
-    inset 0 -10px 18px rgba(166, 190, 255, 0.18);
-  --rr-glow-background: radial-gradient(circle, rgba(255, 153, 191, 0.28), rgba(128, 181, 255, 0.18) 46%, transparent 74%);
-  --rr-loader-track: rgba(63, 102, 165, 0.14);
-  --rr-loader-accent: rgba(63, 102, 165, 0.78);
-  --rr-loader-secondary: rgba(255, 255, 255, 0.72);
-  --rr-loader-glow: rgba(255, 192, 208, 0.28);
-  --rr-particle-glow: rgba(255, 255, 255, 0.78);
-  --rr-hover-filter: saturate(1.06) brightness(1.01);
-}
-
-.random-review-widget[data-theme-mode='dark'] {
-  --rr-button-border: rgba(255, 196, 244, 0.26);
-  --rr-button-fill:
-    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.08) 24%, rgba(255, 255, 255, 0) 52%),
-    linear-gradient(145deg, #5a2e73 0%, #8a356f 42%, #365bb3 100%);
-  --rr-button-sheen: linear-gradient(180deg, rgba(255, 219, 246, 0.3), rgba(255, 255, 255, 0.02));
-  --rr-button-gloss: linear-gradient(180deg, rgba(255, 224, 247, 0.4), rgba(255, 255, 255, 0));
-  --rr-icon-color: #fff4ec;
-  --rr-dice-pip-color: #ffd7e6;
-  --rr-icon-shadow: drop-shadow(0 2px 5px rgba(255, 214, 248, 0.12));
-  --rr-shadow-idle:
-    0 14px 32px rgba(14, 8, 37, 0.46),
-    0 0 0 1px rgba(255, 174, 230, 0.16),
-    inset 0 1px 0 rgba(255, 225, 245, 0.18),
-    inset 0 -12px 22px rgba(33, 55, 120, 0.28);
-  --rr-shadow-hover:
-    0 18px 36px rgba(12, 7, 32, 0.54),
-    0 0 0 1px rgba(255, 174, 230, 0.26),
-    0 0 18px rgba(123, 112, 255, 0.28),
-    0 0 26px rgba(255, 109, 172, 0.18),
-    inset 0 1px 0 rgba(255, 225, 245, 0.24),
-    inset 0 -12px 24px rgba(33, 55, 120, 0.32);
-  --rr-shadow-pressing:
-    0 8px 18px rgba(12, 7, 32, 0.5),
-    0 0 0 1px rgba(255, 174, 230, 0.2),
-    inset 0 2px 8px rgba(255, 225, 245, 0.14),
-    inset 0 -10px 18px rgba(33, 55, 120, 0.24);
-  --rr-shadow-loading:
-    0 16px 34px rgba(12, 7, 32, 0.56),
-    0 0 0 1px rgba(255, 174, 230, 0.24),
-    0 0 22px rgba(123, 112, 255, 0.24),
-    inset 0 1px 0 rgba(255, 225, 245, 0.24),
-    inset 0 -12px 24px rgba(33, 55, 120, 0.32);
-  --rr-glow-background: radial-gradient(circle, rgba(152, 115, 255, 0.42), rgba(255, 101, 177, 0.22) 44%, transparent 74%);
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.52) 0%, rgba(255, 255, 255, 0.2) 24%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(145deg, #a46fd0 0%, #cc78b7 42%, #76a0f0 100%);
+  --rr-button-sheen: linear-gradient(180deg, rgba(255, 238, 252, 0.64), rgba(255, 255, 255, 0.14));
+  --rr-button-gloss: linear-gradient(180deg, rgba(255, 243, 253, 0.7), rgba(255, 255, 255, 0.12));
+  --rr-icon-color: var(--rr-rating-button-border-solid);
+  --rr-dice-pip-color: var(--rr-rating-button-border-solid);
+  --rr-icon-shadow: none;
+  --rr-shadow-idle: none;
+  --rr-shadow-hover: none;
+  --rr-shadow-pressing: none;
+  --rr-shadow-loading: none;
+  --rr-glow-background: radial-gradient(circle, rgba(185, 149, 255, 0.36), rgba(255, 129, 192, 0.2) 44%, transparent 74%);
   --rr-loader-track: rgba(255, 255, 255, 0.12);
   --rr-loader-accent: rgba(154, 224, 255, 0.96);
   --rr-loader-secondary: rgba(255, 155, 214, 0.48);
   --rr-loader-glow: rgba(118, 194, 255, 0.3);
   --rr-particle-glow: rgba(174, 216, 255, 0.66);
-  --rr-hover-filter: saturate(1.08) brightness(1.08);
+  --rr-idle-filter: brightness(1.08);
+  --rr-hover-filter: saturate(1.08) brightness(1.16);
+  --rr-rating-panel-bg: rgba(166, 147, 238, 0.22);
+  --rr-rating-panel-border: rgba(150, 133, 232, 0.52);
+  --rr-rating-title-color: #4f46a5;
+  --rr-rating-button-bg: rgba(186, 170, 248, 0.3);
+  --rr-rating-button-border: rgba(149, 131, 230, 0.62);
+  --rr-rating-button-border-solid: #9583e6;
+  --rr-rating-button-color: #3949ab;
+  --rr-rating-skip-bg: rgba(243, 244, 246, 0.82);
+  --rr-rating-skip-border: rgba(156, 163, 175, 0.46);
+  --rr-rating-skip-color: #4b5563;
+}
+
+.random-review-widget[data-theme-mode='dark'] {
+  --rr-button-border: rgba(214, 160, 236, 0.42);
+  --rr-button-fill:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.08) 24%, rgba(255, 255, 255, 0) 52%),
+    linear-gradient(145deg, #6d4393 0%, #8f4e86 42%, #496dc0 100%);
+  --rr-button-sheen: linear-gradient(180deg, rgba(255, 225, 247, 0.36), rgba(255, 255, 255, 0.04));
+  --rr-button-gloss: linear-gradient(180deg, rgba(255, 229, 249, 0.44), rgba(255, 255, 255, 0.02));
+  --rr-glow-background: radial-gradient(circle, rgba(124, 94, 214, 0.32), rgba(226, 92, 151, 0.16) 44%, transparent 74%);
+  --rr-idle-filter: none;
+  --rr-hover-filter: saturate(1.05) brightness(1.03);
+  --rr-icon-color: var(--rr-rating-button-border-solid);
+  --rr-dice-pip-color: var(--rr-rating-button-border-solid);
+  --rr-rating-panel-bg: rgba(66, 48, 112, 0.56);
+  --rr-rating-panel-border: rgba(167, 147, 238, 0.5);
+  --rr-rating-title-color: #dfd7ff;
+  --rr-rating-button-bg: rgba(98, 73, 162, 0.66);
+  --rr-rating-button-border: rgba(183, 162, 250, 0.58);
+  --rr-rating-button-border-solid: #cfc0ff;
+  --rr-rating-button-color: #efeafe;
+  --rr-rating-skip-bg: rgba(58, 58, 72, 0.74);
+  --rr-rating-skip-border: rgba(170, 170, 182, 0.34);
+  --rr-rating-skip-color: #e6e7ee;
 }
 
 .random-review-button {
@@ -93,6 +72,7 @@ export const RANDOM_REVIEW_BUTTON_STYLES = String.raw`
   border-radius: 999px;
   background: var(--rr-button-fill);
   color: var(--rr-icon-color);
+  filter: var(--rr-idle-filter);
   box-shadow: var(--rr-shadow-idle);
   cursor: pointer;
   transition:
@@ -104,6 +84,7 @@ export const RANDOM_REVIEW_BUTTON_STYLES = String.raw`
     border-color 220ms ease;
   isolation: isolate;
   overflow: hidden;
+  margin: 0 auto;
 }
 
 .random-review-button::before,
@@ -138,7 +119,8 @@ export const RANDOM_REVIEW_BUTTON_STYLES = String.raw`
 }
 
 .random-review-button:disabled {
-  cursor: wait;
+  cursor: not-allowed;
+  opacity: 0.9;
 }
 
 .random-review-button.phase-pressing {
@@ -195,9 +177,7 @@ export const RANDOM_REVIEW_BUTTON_STYLES = String.raw`
   border-radius: 999px;
   border: 2px solid var(--rr-loader-track);
   border-top-color: var(--rr-loader-accent);
-  box-shadow:
-    0 0 0 1px var(--rr-loader-secondary),
-    0 0 12px var(--rr-loader-glow);
+  box-shadow: none;
   animation: random-review-spin 800ms linear infinite;
 }
 
@@ -222,9 +202,50 @@ export const RANDOM_REVIEW_BUTTON_STYLES = String.raw`
   transform: rotate(var(--rr-angle)) translateY(0) scale(0.4);
   animation: random-review-burst var(--rr-duration) cubic-bezier(0.12, 0.82, 0.24, 1) forwards;
   animation-delay: var(--rr-delay);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.16),
-    0 0 10px var(--rr-particle-glow);
+  box-shadow: none;
+}
+
+.random-review-widget__rating {
+  margin-top: 10px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid var(--rr-rating-panel-border);
+  background: var(--rr-rating-panel-bg);
+  display: grid;
+  gap: 6px;
+}
+
+.random-review-widget__rating-actions {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+}
+
+.random-review-widget__rating-button {
+  border: 1px solid var(--rr-rating-button-border);
+  border-radius: 8px;
+  background: var(--rr-rating-button-bg);
+  color: var(--rr-rating-button-color);
+  width: 25px;
+  height: 25px;
+  font-size: 19px;
+  line-height: 1;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+
+.random-review-widget__rating-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.random-review-widget__rating-button:disabled {
+  opacity: 0.55;
+  cursor: wait;
 }
 
 @keyframes random-review-roll {

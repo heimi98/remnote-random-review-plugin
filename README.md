@@ -2,14 +2,15 @@
 
 Open a document from your RemNote knowledge base with one click.
 
-This plugin now uses weighted random selection instead of pure randomness. Documents that have not been edited for a longer time and have been opened fewer times are more likely to be picked.
+This plugin now supports FSRS-Lite scheduling for document-level review. You can rate each opened document with `Again / Hard / Good / Easy`, and the next pick is biased toward higher forgetting risk.
 
 ## Features
 
 - Open a random document from the sidebar or command palette
 - Show an English toast such as `This is your 3rd time opening this document.`
 - Track per-document open counts with synced plugin storage
-- Prefer older and less-opened documents
+- FSRS-Lite document scheduler with `Again / Hard / Good / Easy` feedback
+- Plugin setting: `Reset Review Memory` to clear all random-review memory
 - Cache the document index locally for faster repeated use
 
 ## Installation

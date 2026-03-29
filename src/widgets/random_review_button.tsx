@@ -2,9 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { usePlugin, renderWidget } from '@remnote/plugin-sdk';
 import {
   NO_REVIEWABLE_DOCUMENTS_MESSAGE,
+  type PendingReviewState,
+  type ReviewRating,
+  getPendingReviewStatus,
   openPreparedRandomDocument,
   prepareWeightedRandomDocument,
   primeRandomReviewCache,
+  ratePendingReview,
+  skipPendingReview,
 } from '../random_review_service';
 import { RANDOM_REVIEW_BUTTON_STYLES } from './random_review_button_styles';
 
@@ -65,6 +70,12 @@ const BURST_PARTICLES = [
   { angle: 154, distance: 36, size: 7, delay: 45, duration: 560, lightColor: '#ffc3da', darkColor: '#ff99c8' },
   { angle: 178, distance: 30, size: 8, delay: 20, duration: 530, lightColor: '#ffaba8', darkColor: '#ff897f' },
   { angle: 208, distance: 26, size: 6, delay: 0, duration: 510, lightColor: '#ffd4ad', darkColor: '#ffb875' },
+];
+
+const REVIEW_RATINGS: { rating: ReviewRating; label: string; emoji: string }[] = [
+  { rating: 'hard', label: 'Hard', emoji: '😵' },
+  { rating: 'good', label: 'Good', emoji: '🙂' },
+  { rating: 'easy', label: 'Easy', emoji: '😎' },
 ];
 
 function randomDiceFace() {
@@ -287,15 +298,24 @@ const RandomReviewButton = () => {
   const [diceFace, setDiceFace] = useState(5);
   const [burstKey, setBurstKey] = useState(0);
   const [isBurstVisible, setIsBurstVisible] = useState(false);
+  const [pendingReview, setPendingReview] = useState<PendingReviewState | undefined>(undefined);
+  const [isRatingBusy, setIsRatingBusy] = useState(false);
   const widgetRef = useRef<HTMLDivElement>(null);
   const rollingIntervalRef = useRef<number | undefined>(undefined);
   const burstTimeoutRef = useRef<number | undefined>(undefined);
   const busyRef = useRef(false);
   const themeMode = useThemeMode(widgetRef);
   const isBusy = phase === 'rolling' || phase === 'loading';
+  const isRollDisabled = isBusy || isRatingBusy;
+
+  const refreshPendingReviewStatus = async () => {
+    const status = await getPendingReviewStatus(plugin);
+    setPendingReview(status.pendingReview);
+  };
 
   useEffect(() => {
     primeRandomReviewCache(plugin);
+    void refreshPendingReviewStatus();
   }, [plugin]);
 
   useEffect(() => {
@@ -344,7 +364,12 @@ const RandomReviewButton = () => {
 
   // 处理随机回顾操作
   const handleRandomReview = async () => {
-    if (busyRef.current || isBusy) return;
+    if (busyRef.current || isBusy || isRatingBusy) return;
+
+    if (pendingReview) {
+      await skipPendingReview(plugin);
+      await refreshPendingReviewStatus();
+    }
 
     busyRef.current = true;
 
@@ -356,9 +381,9 @@ const RandomReviewButton = () => {
     startBurst();
 
     const documentPromise = prepareWeightedRandomDocument(plugin)
-      .then((document) => {
+      .then((result) => {
         selectionResolved = true;
-        return document;
+        return result;
       })
       .catch((error) => {
         selectionResolved = true;
@@ -373,24 +398,42 @@ const RandomReviewButton = () => {
         setPhase('loading');
       }
 
-      const document = await documentPromise;
+      const result = await documentPromise;
 
-      if (!document) {
+      if (!result.document) {
         plugin.app.toast(NO_REVIEWABLE_DOCUMENTS_MESSAGE).catch(() => {});
         setPhase('idle');
         busyRef.current = false;
+        await refreshPendingReviewStatus();
         return;
       }
 
-      await openPreparedRandomDocument(plugin, document);
+      await openPreparedRandomDocument(plugin, result.document);
       setPhase('idle');
       busyRef.current = false;
+      await refreshPendingReviewStatus();
     } catch (error) {
       console.error('Unexpected error:', error);
       plugin.app.toast('An unexpected error occurred.').catch(() => {});
       stopRollingFaces();
       setPhase('idle');
       busyRef.current = false;
+      await refreshPendingReviewStatus();
+    }
+  };
+
+  const handleRate = async (rating: ReviewRating) => {
+    if (isRatingBusy) {
+      return;
+    }
+
+    setIsRatingBusy(true);
+
+    try {
+      await ratePendingReview(plugin, rating);
+      await refreshPendingReviewStatus();
+    } finally {
+      setIsRatingBusy(false);
     }
   };
 
@@ -402,7 +445,7 @@ const RandomReviewButton = () => {
         type="button"
         onClick={handleRandomReview}
         onPointerDown={() => {
-          if (!isBusy) {
+          if (!isRollDisabled) {
             setPhase('pressing');
           }
         }}
@@ -413,14 +456,14 @@ const RandomReviewButton = () => {
           setPhase((current) => (current === 'pressing' ? 'idle' : current));
         }}
         onKeyDown={(event) => {
-          if (!isBusy && (event.key === 'Enter' || event.key === ' ')) {
+          if (!isRollDisabled && (event.key === 'Enter' || event.key === ' ')) {
             setPhase('pressing');
           }
         }}
         onKeyUp={() => {
           setPhase((current) => (current === 'pressing' ? 'idle' : current));
         }}
-        disabled={isBusy}
+        disabled={isRollDisabled}
         className={`random-review-button phase-${phase}`}
         data-theme-mode={themeMode}
         title="Roll for a random document"
@@ -468,6 +511,27 @@ const RandomReviewButton = () => {
         </span>
         {phase === 'loading' && <span className="random-review-button__loader" aria-hidden="true" />}
       </button>
+      {pendingReview && (
+        <div className="random-review-widget__rating">
+          <div className="random-review-widget__rating-actions">
+            {REVIEW_RATINGS.map((item) => (
+              <button
+                key={item.rating}
+                type="button"
+                className="random-review-widget__rating-button"
+                onClick={() => {
+                  void handleRate(item.rating);
+                }}
+                disabled={isRatingBusy}
+                title={item.label}
+                aria-label={item.label}
+              >
+                <span aria-hidden="true">{item.emoji}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
